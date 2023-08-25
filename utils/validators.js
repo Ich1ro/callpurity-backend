@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 exports.validateFullName = value => {
     return !(value === null ||
         value === undefined ||
@@ -37,4 +39,15 @@ exports.validatePhone = value => {
     return !(value === null ||
         value === undefined ||
         !/^\+?[1-9][0-9]{7,14}$/.test(value))
+}
+
+exports.validateId = value => {
+    if (value === null || value === undefined || /^\s*$/.test(value)) {
+        return false
+    }
+    if (mongoose.Types.ObjectId.isValid(value)) {
+        return (String)(new mongoose.Types.ObjectId(value)) === value
+    }
+
+    return false
 }

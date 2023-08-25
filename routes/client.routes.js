@@ -4,7 +4,7 @@ const User = require('../models/User')
 const Client = require('../models/Client')
 const { expressjwt: jwt } = require('express-jwt')
 const bcrypt = require('bcrypt')
-const { validateFullName, validateEmail, validateNames, validateZipCode, validatePhone } = require('../utils/validators')
+const { validateFullName, validateEmail, validateNames, validateZipCode, validatePhone, validateId } = require('../utils/validators')
 const { badRequest, ok, created, error, unauthorized } = require('../utils/responses')
 const { generateString } = require('../utils/generators')
 const { PASSWORD_ROUNDS } = require('../utils/constants')
@@ -26,7 +26,7 @@ router
                 validatePhone(body.phone)
 
             if (!validation) {
-                return badRequest(response, { message: 'Validation has not passed' })
+                return badRequest(response, { message: 'Validation failed' })
             }
 
             const authUser = await User.findById(request.auth?.userId, { admin: 1 })
@@ -136,7 +136,7 @@ router
                 { $unwind: '$user' },
                 {
                     $set: {
-                        fullName: '$user.fullName',
+                        contactPerson: '$user.fullName',
                         email: '$user.email'
                     }
                 },
@@ -161,6 +161,93 @@ router
             })
 
         } catch (e) {
+            return error(response, e)
+        }
+    })
+
+    .patch('/clients', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        let session = null
+        try {
+            const id = request.query?.id
+            if (!validateId(id)) {
+                return badRequest(response, { message: 'Incorrect id was provided' })
+            }
+
+            const client = request.body
+            if (!client) {
+                return badRequest(response, { message: 'Request body cannot be empty' })
+            }
+
+            const oldClient = await Client.findById(new mongoose.Types.ObjectId(id))
+            if (!oldClient) {
+                return badRequest(response, { message: 'Company with the provided id is not found' })
+            }
+
+            if (client.companyName) {
+                if (!validateNames(client.companyName, 500, 1)) {
+                    return badRequest(response, { message: 'Validation failed' })
+                }
+                const clientExists = await Client.exists({ companyName: client.companyName })
+                if (clientExists?._id) {
+                    return badRequest(response, { message: 'Company with the provided name already registerd' })
+                }
+            }
+
+            const invalid = (client.address && !validateNames(client.address, 1000, 1)) ||
+                (client.city && !validateNames(client.city, 500, 1)) ||
+                (client.state && !validateNames(client.state, 500, 1)) ||
+                (client.zipCode && !validateZipCode(client.zipCode)) ||
+                (client.phone && !validatePhone(client.phone))
+
+            if (invalid) {
+                return badRequest(response, { message: 'Validation failed' })
+            }
+
+            session = await mongoose.startSession();
+            session.startTransaction();
+
+            if (client.contactPerson || client.email) {
+                const user = {}
+                if (client.contactPerson) {
+                    if (!validateFullName(client.contactPerson)) {
+                        return badRequest(response, { message: 'Validation failed' })
+                    }
+                    user.fullName = client.contactPerson
+                }
+
+                if (client.email) {
+                    if (!validateEmail(client.email)) {
+                        return badRequest(response, { message: 'Validation failed' })
+                    }
+
+                    const existedUser = await User.exists({ email: client.email })
+                    if (existedUser?._id) {
+                        return badRequest(response, { message: 'User with the provided email already exists' })
+                    }
+
+                    user.email = client.email
+                }
+
+                await User.findByIdAndUpdate(oldClient.userId, user)
+            }
+
+            delete client['contactPerson']
+            delete client['email']
+            delete client['_id']
+            delete client['userId']
+
+            await Client.findByIdAndUpdate(id, { ...client })
+
+            await session.commitTransaction();
+            await session.endSession();
+
+            return ok(response, { id: id })
+
+        } catch (e) {
+            if (session) {
+                await session.abortTransaction();
+                await session.endSession();
+            }
             return error(response, e)
         }
     })
