@@ -15,6 +15,9 @@ app.use(cors())
 const auth = require('./routes/auth.routes')
 app.use(auth)
 
+const client = require('./routes/client.routes')
+app.use(client)
+
 app.listen(process.env.PORT || 3001, (error) => {
     if (error) {
         return console.log(error);
