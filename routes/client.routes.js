@@ -89,7 +89,8 @@ router
                 state: body.state,
                 zipCode: body.zipCode,
                 phone: body.phone,
-                registrationDate: new Date().toISOString()
+                registrationDate: new Date().toISOString(),
+                status: 'active'
             })
 
             await session.commitTransaction();

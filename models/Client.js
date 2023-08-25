@@ -8,7 +8,8 @@ const ClientSchema = new mongoose.Schema({
     state: String,
     zipCode: Number,
     phone: String,
-    registrationDate: Date
+    registrationDate: Date,
+    status: String
 }, {
     timestamps: true,
 })
