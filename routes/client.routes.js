@@ -203,6 +203,10 @@ router
                 return badRequest(response, { message: 'Validation failed' })
             }
 
+            if (client.status && !['active', 'inactive', 'churned'].includes(client.status)) {
+                return badRequest(response, { message: 'Statuses could be only active, inactive or churned' })
+            }
+
             session = await mongoose.startSession();
             session.startTransaction();
 
