@@ -106,4 +106,62 @@ router
         }
     })
 
+    .get('/clients', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        try {
+            const page = parseInt(request.query.page ?? 0)
+            const limit = parseInt(request.query.limit ?? 10)
+            const search = request.query.search
+            const sortBy = request.query.sortBy ?? 'companyName'
+            const sortDir = request.query.sortDir ?? 'asc'
+
+            const authUser = await User.findById(request.auth?.userId, { admin: 1 })
+            const isAdmin = authUser?.admin
+            let match = { companyName: { $regex: new RegExp(search, 'i') } }
+            isAdmin || (match = { ...match, userId: new mongoose.Types.ObjectId(request.auth.userId) })
+            const amount = await Client.countDocuments(match)
+            const pages = parseInt(Math.ceil(amount / limit))
+
+            const clients = await Client.aggregate([
+                { $match: match },
+                { $sort: { [sortBy]: sortDir === 'desc' ? -1 : 1 } },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'userId',
+                        foreignField: '_id',
+                        as: 'user'
+                    }
+                },
+                { $unwind: '$user' },
+                {
+                    $set: {
+                        fullName: '$user.fullName',
+                        email: '$user.email'
+                    }
+                },
+                {
+                    $project: {
+                        userId: 0,
+                        user: 0,
+                        __v: 0
+                    }
+                },
+                { $skip: limit * page },
+                { $limit: limit }
+            ]).collation({
+                locale: 'en',
+                caseLevel: true
+            })
+
+            return ok(response, {
+                items: clients,
+                total: amount,
+                pages: pages
+            })
+
+        } catch (e) {
+            return error(response, e)
+        }
+    })
+
 module.exports = router
