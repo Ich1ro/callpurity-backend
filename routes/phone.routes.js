@@ -3,6 +3,7 @@ const router = express.Router()
 const User = require('../models/User')
 const Phone = require('../models/Phone')
 const path = require('path')
+const { json2csv } = require('json-2-csv');
 const { expressjwt: jwt } = require('express-jwt')
 const { badRequest, ok, created, error, unauthorized } = require('../utils/responses')
 const { default: mongoose } = require('mongoose')
@@ -106,7 +107,7 @@ router
 
             const phones = await Phone.aggregate([
                 { $match: match },
-                { $project: { __v: 0 }},
+                { $project: { __v: 0 } },
                 { $sort: { [sortBy]: sortDir === 'desc' ? -1 : 1 } },
                 { $skip: limit * page },
                 { $limit: limit }
@@ -120,6 +121,37 @@ router
                 total: amount,
                 pages: pages
             })
+
+        } catch (e) {
+            return error(response, e)
+        }
+    })
+
+    .get('/numbers/download', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        try {
+            const companyId = request.query.id
+            if (!validateId(companyId)) {
+                return badRequest(response, { message: 'Incorrect id was provided' })
+            }
+
+            const numbers = await Phone.find({ companyId: new mongoose.Types.ObjectId(companyId) }, { _id: 0, __v: 0, companyId: 0 })
+            const forCsv = numbers.map(it => ({
+                'TFN': it.tfn,
+                'Area Code': it.areaCode,
+                'State': it.state,
+                'Region': it.region,
+                'Top 15 Area Code': it.top15AreaCode ? 'Y' : 'N',
+                'AT&T': it.att,
+                'AT&T Branded': it.attBranded ? 'Y' : 'N',
+                'Tmobile': it.tmobile,
+                'Tmobile Branded': it.tmobileBranded ? 'Y' : 'N',
+                'Verizon': it.verizon,
+                'Verizon Branded': it.verizonBranded ? 'Y' : 'N',
+                'Business Category': it.businessCategory
+            }))
+            const csv = await json2csv(forCsv);
+            response.set({ "Content-Disposition": "attachment; filename=Phone Numbers.csv", "Content-Type": 'text/csv' });
+            response.send(csv);
 
         } catch (e) {
             return error(response, e)
