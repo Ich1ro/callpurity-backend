@@ -115,12 +115,24 @@ router
             const sortBy = request.query.sortBy ?? 'companyName'
             const sortDir = request.query.sortDir ?? 'asc'
 
+            if (page < 0) {
+                return badRequest(response, { message: 'Page incorrect' })
+            }
+
+            if (limit < 1 || limit > 1000) {
+                return badRequest(response, { message: 'Limit incorrect' })
+            }
+
             const authUser = await User.findById(request.auth?.userId, { admin: 1 })
             const isAdmin = authUser?.admin
             let match = { companyName: { $regex: new RegExp(search, 'i') } }
             isAdmin || (match = { ...match, userId: new mongoose.Types.ObjectId(request.auth.userId) })
             const amount = await Client.countDocuments(match)
             const pages = parseInt(Math.ceil(amount / limit))
+
+            if (page > pages) {
+                return badRequest(response, { message: 'Page incorrect' })
+            }
 
             const clients = await Client.aggregate([
                 { $match: match },
