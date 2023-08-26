@@ -7,9 +7,10 @@ const { json2csv } = require('json-2-csv');
 const { expressjwt: jwt } = require('express-jwt')
 const { badRequest, ok, created, error, unauthorized } = require('../utils/responses')
 const { default: mongoose } = require('mongoose')
-const { validateId } = require('../utils/validators')
+const { validateId, validatePhone } = require('../utils/validators')
 const { MAX_FILE_SIZE } = require('../utils/constants')
 const { parseCsv } = require('../utils/upload')
+const Client = require('../models/Client')
 
 router
     .post('/numbers', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
@@ -88,6 +89,14 @@ router
                 return badRequest(response, { message: 'Incorrect id was provided' })
             }
 
+            const authUser = await User.findById(request.auth?.userId, { admin: 1 })
+            if (!authUser?.admin) {
+                const companies = await Client.find({ userId: request.auth?.userId, _id: new mongoose.Types.ObjectId(companyId) })
+                if (companies?.length === 0) {
+                    return badRequest(response, { message: 'No company found' })
+                }
+            }
+
             let match = { companyId: new mongoose.Types.ObjectId(companyId), tfn: { $regex: new RegExp(search, 'i') } }
             branded && (match = {
                 ...match, $expr: {
@@ -134,6 +143,14 @@ router
                 return badRequest(response, { message: 'Incorrect id was provided' })
             }
 
+            const authUser = await User.findById(request.auth?.userId, { admin: 1 })
+            if (!authUser?.admin) {
+                const companies = await Client.find({ userId: request.auth?.userId, _id: new mongoose.Types.ObjectId(companyId) })
+                if (companies?.length === 0) {
+                    return badRequest(response, { message: 'No company found' })
+                }
+            }
+
             const numbers = await Phone.find({ companyId: new mongoose.Types.ObjectId(companyId) }, { _id: 0, __v: 0, companyId: 0 })
             const forCsv = numbers.map(it => ({
                 'TFN': it.tfn,
@@ -153,6 +170,54 @@ router
             response.set({ "Content-Disposition": "attachment; filename=Phone Numbers.csv", "Content-Type": 'text/csv' });
             response.send(csv);
 
+        } catch (e) {
+            return error(response, e)
+        }
+    })
+
+    .get('/numbers/phone', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        try {
+            if (!validatePhone(request.query.number)) {
+                return badRequest(response, { message: 'Validation failed' })
+            }
+
+            const authUser = await User.findById(request.auth?.userId)
+
+            let numbers = await Phone.aggregate([
+                { $match: { tfn: request.query.number.trim() } },
+                {
+                    $lookup: {
+                        from: 'clients',
+                        localField: 'companyId',
+                        foreignField: '_id',
+                        as: 'client'
+                    }
+                },
+                { $unwind: '$client' },
+                {
+                    $set: {
+                        companyName: '$client.companyName',
+                        state: '$client.state',
+                        region: '$client.region',
+                        status: '$client.status',
+                        userId: '$client.userId'
+                    }
+                },
+                {
+                    $project: {
+                        companyId: 0,
+                        client: 0,
+                        __v: 0
+                    }
+                }
+            ]);
+
+            authUser?.admin || (numbers = numbers.filter(it => it.userId.toString() === authUser._id.toString()))
+
+            const number = numbers[0]
+            delete number['userId']
+
+            return ok(response, number)
         } catch (e) {
             return error(response, e)
         }
