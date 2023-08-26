@@ -52,7 +52,7 @@ router
             const token = jwt.sign(
                 {
                     userId: user._id,
-                    userEmail: user.email,
+                    userEmail: user.email
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: JWT_EXPIRATION }
@@ -62,6 +62,7 @@ router
                 message: "Login Successful",
                 email: user.email,
                 fullName: user.fullName,
+                admin: user.admin,
                 token,
             })
         } catch (e) {
