@@ -31,15 +31,15 @@ router
                 return badRequest(response, { message: 'File with extension .csv is only allowed' })
             }
 
-            const exists = await Phone.exists({ companyId: new mongoose.Types.ObjectId(companyId) })
-            if (exists?._id) {
-                await Phone.deleteMany({ companyId: new mongoose.Types.ObjectId(companyId) })
-            }
-
             const authUser = await User.findById(request.auth?.userId, { admin: 1 })
             const isAdmin = authUser?.admin
             if (!isAdmin) {
                 return unauthorized(response, { message: 'User is not allowed to perform this action' })
+            }
+
+            const exists = await Phone.exists({ companyId: new mongoose.Types.ObjectId(companyId) })
+            if (exists?._id) {
+                await Phone.deleteMany({ companyId: new mongoose.Types.ObjectId(companyId) })
             }
 
             const result = await parseCsv(file, {
