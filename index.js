@@ -18,7 +18,7 @@ app.use(auth)
 const client = require('./routes/client.routes')
 app.use(client)
 
-app.listen(process.env.PORT || 8080, (error) => {
+app.listen(process.env.PORT || 3001, (error) => {
     if (error) {
         return console.log(error);
     } else {
