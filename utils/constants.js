@@ -1,2 +1,3 @@
 exports.JWT_EXPIRATION = '24h'
 exports.PASSWORD_ROUNDS = 10
+exports.MAX_FILE_SIZE = 104857600
