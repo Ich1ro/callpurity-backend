@@ -2,12 +2,11 @@ const express = require('express')
 const router = express.Router()
 const User = require('../models/User')
 const Phone = require('../models/Phone')
-const path = require('path')
 const { json2csv } = require('json-2-csv');
 const { expressjwt: jwt } = require('express-jwt')
 const { badRequest, ok, created, error, unauthorized } = require('../utils/responses')
 const { default: mongoose } = require('mongoose')
-const { validateId, validatePhone } = require('../utils/validators')
+const { validateId, validatePhone, validateFile } = require('../utils/validators')
 const { MAX_FILE_SIZE } = require('../utils/constants')
 const { parseCsv } = require('../utils/upload')
 const Client = require('../models/Client')
@@ -20,17 +19,8 @@ router
                 return badRequest(response, { message: 'Incorrect id was provided' })
             }
 
-            const file = request.file
-            if (!file) {
-                return badRequest(response, { message: 'File must be uploaded' })
-            }
-
-            if (file.size > MAX_FILE_SIZE) {
-                return badRequest(response, { message: 'File size cannot be greater than 100MB' })
-            }
-
-            if (path.extname(file.originalname)?.toLowerCase() !== '.csv') {
-                return badRequest(response, { message: 'File with extension .csv is only allowed' })
+            if (!validateFile(request.file, ['.csv'])) {
+                return badRequest(response, { message: 'File validation error' })
             }
 
             const authUser = await User.findById(request.auth?.userId, { admin: 1 })
@@ -44,7 +34,7 @@ router
                 await Phone.deleteMany({ companyId: new mongoose.Types.ObjectId(companyId) })
             }
 
-            const result = await parseCsv(file, {
+            const result = await parseCsv(request.file, {
                 'TFN': { key: 'tfn' },
                 'Area Code': { key: 'areaCode' },
                 'State': { key: 'state' },
@@ -61,6 +51,64 @@ router
 
             const inserted = await Phone.insertMany(result)
             return created(response, { message: 'Data was successfully uploaded', ids: inserted.map(it => it._id) })
+
+        } catch (e) {
+            return error(response, e)
+        }
+    })
+
+    .post('/numbers/ftc', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        try {
+            if (!validateFile(request.file, ['.csv'])) {
+                return badRequest(response, { message: 'File validation error' })
+            }
+            const authUser = await User.findById(request.auth?.userId, { admin: 1 })
+            const isAdmin = authUser?.admin
+            if (!isAdmin) {
+                return unauthorized(response, { message: 'User is not allowed to perform this action' })
+            }
+
+            const complainNumbers = (await parseCsv(request.file, {
+                'Company_Phone_Number': { key: 'tfn' }
+            }))
+                .map(it => it.tfn)
+                .filter(it => it !== undefined)
+
+            let foundFtc = await Phone.aggregate([
+                { $match: { tfn: { $in: complainNumbers } } },
+                {
+                    $lookup: {
+                        from: 'clients',
+                        localField: 'companyId',
+                        foreignField: '_id',
+                        as: 'client'
+                    }
+                },
+                { $unwind: '$client' },
+                { $group: { _id: { _id: '$companyId', companyName: '$client.companyName' }, numbers: { $push: { tfn: '$tfn', _id: '$_id' } } } },
+            ])
+
+            foundFtc = foundFtc.map(it => ({
+                _id: it._id._id,
+                companyName: it._id.companyName,
+                numbers: it.numbers
+            }))
+
+            const numbersToUpdate = []
+            foundFtc.forEach(it => {
+                it.numbers.forEach(n => {
+                    numbersToUpdate.push({ updateOne: { filter: { _id: n._id }, update: { ftcStrikes: true, ftcStrikesLastDate: new Date().toISOString() } } })
+                })
+            })
+
+            await Phone.bulkWrite(numbersToUpdate)
+            
+            const ftcFlagged = foundFtc.reduce((acc, cur) => acc + cur.numbers.length, 0)
+            return ok(response, {
+                total: complainNumbers.length,
+                ftcFlagged,
+                items: foundFtc
+            })
 
         } catch (e) {
             return error(response, e)

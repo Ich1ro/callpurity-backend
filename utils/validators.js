@@ -1,4 +1,6 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose')
+const { MAX_FILE_SIZE } = require('./constants')
+const path = require('path')
 
 exports.validateFullName = value => {
     return !(value === null ||
@@ -50,4 +52,11 @@ exports.validateId = value => {
     }
 
     return false
+}
+
+exports.validateFile = (file, allowedExtensions) => {
+    if (!file || file.size > MAX_FILE_SIZE || !allowedExtensions.includes(path.extname(file.originalname)?.toLowerCase())) {
+        return false
+    }
+    return true
 }

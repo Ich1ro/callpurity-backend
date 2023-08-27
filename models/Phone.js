@@ -13,7 +13,9 @@ const PhoneSchema = new mongoose.Schema({
     tmobileBranded: Boolean,
     verizon: String,
     verizonBranded: Boolean,
-    businessCategory: String
+    businessCategory: String,
+    ftcStrikes: Boolean,
+    ftcStrikesLastDate: Date
 }, {
     timestamps: true,
 })

@@ -10,7 +10,7 @@ exports.parseCsv = function (file, map, add) {
                 const transformed = {}
                 map && Object.entries(map).forEach(entry => {
                     const value = entry[1].compute ? entry[1].compute(json[entry[0]]) : json[entry[0]]
-                    entry[1].key && (transformed[entry[1].key] = value)
+                    entry[1].key && value && (transformed[entry[1].key] = value)
                 })
 
                 add && Object.entries(add).forEach(entry => {
