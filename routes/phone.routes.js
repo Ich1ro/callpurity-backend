@@ -103,10 +103,9 @@ router
 
             await Phone.bulkWrite(numbersToUpdate)
             
-            const ftcFlagged = foundFtc.reduce((acc, cur) => acc + cur.numbers.length, 0)
             return ok(response, {
                 total: complainNumbers.length,
-                ftcFlagged,
+                ftcFlagged: numbersToUpdate.length,
                 items: foundFtc
             })
 
