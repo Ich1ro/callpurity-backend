@@ -177,6 +177,51 @@ router
         }
     })
 
+    .get('/clients/byId', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        try {
+            const id = request.query?.id
+            if (!validateId(id)) {
+                return badRequest(response, { message: 'Incorrect id was provided' })
+            }
+
+            let match = { _id: new mongoose.Types.ObjectId(id) }
+            const authUser = await User.findById(request.auth?.userId, { _id: 1, admin: 1 })
+            const isAdmin = authUser?.admin
+            isAdmin || (match = {...match, userId: authUser._id })
+
+            const clients = await Client.aggregate([
+                { $match: match },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: 'userId',
+                        foreignField: '_id',
+                        as: 'user'
+                    }
+                },
+                { $unwind: '$user' },
+                {
+                    $set: {
+                        contactPerson: '$user.fullName',
+                        email: '$user.email'
+                    }
+                },
+                {
+                    $project: {
+                        userId: 0,
+                        user: 0,
+                        __v: 0
+                    }
+                }
+            ])
+
+            return ok(response, clients[0])
+
+        } catch (e) {
+            return error(response, e)
+        }
+    })
+
     .patch('/clients', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
         let session = null
         try {

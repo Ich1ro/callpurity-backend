@@ -223,4 +223,33 @@ router
         }
     })
 
+    .get('/numbers/all', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        try {
+            const authUser = await User.findById(request.auth?.userId, { admin: 1, _id: 1 })
+            if (!authUser?.admin) {
+                const numbers = await Phone.aggregate([
+                    {
+                        $lookup: {
+                            from: 'clients',
+                            localField: 'companyId',
+                            foreignField: '_id',
+                            as: 'client'
+                        }
+                    },
+                    { $unwind: '$client' },
+                    { $match: { 'client.userId': authUser._id } },
+                    { $project: { tfn: 1, _id: 0 } }
+                ])
+
+                return ok(response, numbers)
+            }
+
+            const numbers = await Phone.find({}, { tfn: 1, _id: 0 })
+            return ok(response, numbers.map(it => it.tfn))
+
+        } catch (e) {
+            return error(response, e)
+        }
+    })
+
 module.exports = router
