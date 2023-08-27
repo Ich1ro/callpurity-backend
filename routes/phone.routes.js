@@ -7,7 +7,6 @@ const { expressjwt: jwt } = require('express-jwt')
 const { badRequest, ok, created, error, unauthorized } = require('../utils/responses')
 const { default: mongoose } = require('mongoose')
 const { validateId, validatePhone, validateFile } = require('../utils/validators')
-const { MAX_FILE_SIZE } = require('../utils/constants')
 const { parseCsv } = require('../utils/upload')
 const Client = require('../models/Client')
 
@@ -102,7 +101,7 @@ router
             })
 
             await Phone.bulkWrite(numbersToUpdate)
-            
+
             return ok(response, {
                 total: complainNumbers.length,
                 ftcFlagged: numbersToUpdate.length,

@@ -18,7 +18,7 @@ exports.parseCsv = function (file, map, add) {
                 })
                 objs.push(transformed)
             }, e => reject(e), () => resolve(objs))
-        } catch(e) {
+        } catch (e) {
             reject(e)
         }
     })

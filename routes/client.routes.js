@@ -187,7 +187,7 @@ router
             let match = { _id: new mongoose.Types.ObjectId(id) }
             const authUser = await User.findById(request.auth?.userId, { _id: 1, admin: 1 })
             const isAdmin = authUser?.admin
-            isAdmin || (match = {...match, userId: authUser._id })
+            isAdmin || (match = { ...match, userId: authUser._id })
 
             const clients = await Client.aggregate([
                 { $match: match },
