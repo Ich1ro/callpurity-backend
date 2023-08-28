@@ -144,15 +144,28 @@ router
             }
 
             let match = { companyId: new mongoose.Types.ObjectId(companyId), tfn: { $regex: new RegExp(search, 'i') } }
-            branded && (match = {
-                ...match, $expr: {
-                    $or: [
-                        { $eq: ['$attBranded', branded === 'true' ? true : false] },
-                        { $eq: ['$tmobileBranded', branded === 'true' ? true : false] },
-                        { $eq: ['$verizonBranded', branded === 'true' ? true : false] },
-                    ]
-                }
-            })
+            if (branded) {
+                branded === 'true' && (match = {
+                    ...match, $expr: {
+                        $or: [
+                            { $eq: ['$attBranded', true] },
+                            { $eq: ['$tmobileBranded', true] },
+                            { $eq: ['$verizonBranded', true] },
+                        ]
+                    }
+                })
+
+                branded === 'false' && ((match = {
+                    ...match, $expr: {
+                        $and: [
+                            { $eq: ['$attBranded', false] },
+                            { $eq: ['$tmobileBranded', false] },
+                            { $eq: ['$verizonBranded', false] },
+                        ]
+                    }
+                }))
+            }
+            
             const amount = await Phone.countDocuments(match)
             const pages = parseInt(Math.ceil(amount / limit))
 
