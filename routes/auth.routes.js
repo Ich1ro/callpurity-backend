@@ -3,6 +3,7 @@ const router = express.Router()
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const User = require('../models/User')
+const Client = require('../models/Client')
 const { validateFullName, validateEmail } = require('../utils/validators')
 const { badRequest, ok, created, error, unauthorized } = require('../utils/responses')
 const { JWT_EXPIRATION, PASSWORD_ROUNDS } = require('../utils/constants')
@@ -49,6 +50,12 @@ router
                 return unauthorized(response, { message: 'Invalid Credentials' })
             }
 
+            let companyId = undefined
+            if (!user.admin) {
+                const client = await Client.findOne( { userId: user._id }, { _id: 1 })
+                client && (companyId = client._id)
+            }
+
             const token = jwt.sign(
                 {
                     userId: user._id,
@@ -63,6 +70,7 @@ router
                 email: user.email,
                 fullName: user.fullName,
                 admin: user.admin,
+                companyId,
                 token,
             })
         } catch (e) {
