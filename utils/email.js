@@ -1,6 +1,6 @@
 const SibApiV3Sdk = require('sib-api-v3-sdk')
 
-exports.sendEmail = async (senderName, senderEmail, toName, toEmail, subject, html) => {
+exports.sendEmail = async (senderName, senderEmail, toName, toEmail, subject, html, attachment) => {
     const defaultClient = SibApiV3Sdk.ApiClient.instance
     defaultClient.authentications['api-key'].apiKey = process.env.BREVO_KEY
 
@@ -11,7 +11,8 @@ exports.sendEmail = async (senderName, senderEmail, toName, toEmail, subject, ht
     sendSmtpEmail.htmlContent = html
     sendSmtpEmail.sender = { name: senderName, email: senderEmail }
     sendSmtpEmail.to = [{ name: toName, email: toEmail }]
-
+    attachment && (sendSmtpEmail.attachment = [{ content: attachment.value, name: attachment.name }])
+    
     try {
         await apiInstance.sendTransacEmail(sendSmtpEmail)
         return { status: 200 }

@@ -51,7 +51,7 @@ router
                 const hashedPassword = await bcrypt.hash(password, PASSWORD_ROUNDS)
                 const result = await sendEmail(
                     'Callpurity',
-                    'callpurity@gmail.com',
+                    process.env.EMAIL,
                     body.contactPerson,
                     body.email,
                     'Password for new contact person',
