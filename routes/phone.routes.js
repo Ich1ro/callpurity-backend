@@ -4,9 +4,9 @@ const User = require('../models/User')
 const Phone = require('../models/Phone')
 const { json2csv } = require('json-2-csv');
 const { expressjwt: jwt } = require('express-jwt')
-const { badRequest, ok, created, error, unauthorized } = require('../utils/responses')
+const { badRequest, ok, created, error, unauthorized, notFound } = require('../utils/responses')
 const { default: mongoose } = require('mongoose')
-const { validateId, validatePhone, validateFile } = require('../utils/validators')
+const { validateId, validatePhone, validateFile, validateAreaCode, validateNames, validateBoolean } = require('../utils/validators')
 const { parseCsv } = require('../utils/upload')
 const Client = require('../models/Client')
 
@@ -165,7 +165,7 @@ router
                     }
                 }))
             }
-            
+
             const amount = await Phone.countDocuments(match)
             const pages = parseInt(Math.ceil(amount / limit))
 
@@ -310,5 +310,85 @@ router
             return error(response, e)
         }
     })
+    .patch('/numbers', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        try {
+            const id = request.query.id
+            if (!validateId(id)) {
+                return badRequest(response, { message: 'Incorrect id was provided' })
+            }
+
+            const body = request.body
+            const validation = (!body.areaCode || validateAreaCode(body.areaCode)) &&
+                (!body.state || validateNames(body.state, 500, 1)) &&
+                (!body.region || validateNames(body.region, 500, 1)) &&
+                (!body.businessCategory || validateNames(body.businessCategory, 1000, 1)) &&
+                (body.top15AreaCode === null || body.top15AreaCode === undefined || validateBoolean(body.top15AreaCode)) &&
+                (!body.att || validateNames(body.att, 50, 3)) &&
+                (!body.tmobile || validateNames(body.tmobile, 50, 3)) &&
+                (!body.verizon || validateNames(body.verizon, 50, 3)) &&
+                (body.attBranded === null || body.attBranded === undefined || validateBoolean(body.attBranded)) &&
+                (body.tmobileBranded === null || body.tmobileBranded === undefined || validateBoolean(body.tmobileBranded)) &&
+                (body.verizonBranded === null || body.verizonBranded === undefined || validateBoolean(body.verizonBranded))
+
+            if (!validation) {
+                return badRequest(response, { message: 'Validation failed' })
+            }
+
+            const authUser = await User.findById(request.auth?.userId, { admin: 1, _id: 1 })
+            if (!numberExists(authUser, id))
+                return notFound(response, { message: 'No phone number found' })
+
+            delete request.body['tfn']
+            await Phone.findByIdAndUpdate(new mongoose.Types.ObjectId(id), request.body)
+
+            return ok(response, { id })
+
+        } catch (e) {
+            return error(response, e)
+        }
+    })
+    .delete('/numbers', jwt({ secret: process.env.JWT_SECRET, algorithms: ["HS256"] }), async (request, response) => {
+        const id = request.query.id
+        if (!validateId(id)) {
+            return badRequest(response, { message: 'Incorrect id was provided' })
+        }
+
+        const authUser = await User.findById(request.auth?.userId, { admin: 1, _id: 1 })
+        if (!numberExists(authUser, id))
+            return notFound(response, { message: 'No phone number found' })
+
+        await Phone.findByIdAndDelete(new mongoose.Types.ObjectId(id))
+
+        return ok(response, { id })
+    })
+
+async function numberExists(authUser, id) {
+    if (!authUser?.admin) {
+        const numbers = await Phone.aggregate([
+            {
+                $lookup: {
+                    from: 'clients',
+                    localField: 'companyId',
+                    foreignField: '_id',
+                    as: 'client'
+                }
+            },
+            { $unwind: '$client' },
+            { $match: { 'client.userId': authUser._id, _id: new mongoose.Types.ObjectId(id) } },
+            { $project: { tfn: 1, _id: 0 } }
+        ])
+
+        if (numbers.length === 0) {
+            return false
+        }
+    } else {
+        const existing = await Phone.exists({ _id: new mongoose.Types.ObjectId(id) })
+        if (!existing) {
+            return false
+        }
+    }
+
+    return true
+}
 
 module.exports = router

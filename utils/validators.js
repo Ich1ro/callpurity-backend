@@ -60,3 +60,11 @@ exports.validateFile = (file, allowedExtensions) => {
     }
     return true
 }
+
+exports.validateAreaCode = value => {
+    return value !== null && value !== undefined && (value.length === 2 || value.length === 3) && value[0] !== '0' && !isNaN(value[0]) && !isNaN(value[1]) && !isNaN(value[2])
+}
+
+exports.validateBoolean = value => {
+    return value === true || value === false
+}
