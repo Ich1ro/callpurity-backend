@@ -122,6 +122,7 @@ router
             const sortDir = request.query.sortDir ?? 'asc'
             const companyId = request.query.id
             const branded = request.query.branded
+            const state = request.query.state
 
             if (page < 0) {
                 return badRequest(response, { message: 'Page incorrect' })
@@ -144,6 +145,10 @@ router
             }
 
             let match = { companyId: new mongoose.Types.ObjectId(companyId), tfn: { $regex: new RegExp(search, 'i') } }
+            if (state) {
+                match = { ...match, state }
+            }
+            
             if (branded) {
                 branded === 'true' && (match = {
                     ...match, $expr: {
