@@ -262,7 +262,6 @@ router
                     $set: {
                         companyName: '$client.companyName',
                         state: '$client.state',
-                        region: '$client.region',
                         status: '$client.status',
                         userId: '$client.userId'
                     }
